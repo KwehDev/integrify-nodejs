@@ -25,7 +25,7 @@ server.post('/api/posts/', (req, res) => {
       // Should be random in future. MongoDB does it automatically for each entry.
       postId: (mockPostDB.length + 1).toString(),
     })
-    //Check PostObj is of Type Post.
+    //Check PostObj includes types of Post.
     if (isPost(postObj)) {
       mockPostDB.push(postObj)
       return res
