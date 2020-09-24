@@ -23,7 +23,7 @@ server.post('/api/posts/', (req, res) => {
       // Should be random in future. MongoDB does it automatically for each entry.
       postId: (mockPostDB.length + 1).toString(),
     })
-
+    //Check PostObj is of Type Post.
     if (isPost(postObj)) {
       mockPostDB.push(postObj)
       return res
@@ -47,12 +47,12 @@ server.delete('/api/posts/:postId', (req, res) => {
 })
 
 server.put('/api/posts/:postId', (req, res) => {
-  console.log(mockPostDB)
   const postId = req.params?.postId
   const updatedPost: Partial<Post> = req.payload
   if (postId) {
     let item = mockPostDB.find((item) => item.postId === postId)
     if (item) {
+      //Normally I would never mutate an object. This would be remedied once a *real* DB is established.
       item = Object.assign(item, {
         ...updatedPost,
       })

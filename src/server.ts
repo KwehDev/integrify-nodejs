@@ -1,17 +1,9 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
-import url from 'url'
-type HttpMethods = 'GET' | 'POST' | 'DELETE' | 'PUT'
-
-type HttpRequest = {
-  path: string
-  handler: ServerRequestHandler
-  method: HttpMethods
-  queryKey?: string | undefined
-}
-
-type Param = {
-  [key: string]: string
-}
+import RequestHandler from './handlers/RequestHandler'
+import ResponseHandler from './handlers/ResponseHandler'
+import { HttpMethods, HttpRequest, Param, ServerRequestHandler } from './types'
+import deconstructPath from './utils/deconstructPath'
+import deconstructUrl from './utils/deconstructUrl'
 
 export default class HttpServer {
   private readonly _host: string
@@ -88,11 +80,11 @@ export default class HttpServer {
   }
 
   _requestListener(req: IncomingMessage, res: ServerResponse) {
-    const [pathName, queryVal] = deconstructUrl(req.url!)
+    const [endpoint, queryVal] = deconstructUrl(req.url!)
     const method = req.method!.toLowerCase()
     const httpRequest = this.httpRequests.find(
       (req) =>
-        req.path.toLowerCase() === pathName &&
+        req.endpoint.toLowerCase() === endpoint &&
         req.method.toLowerCase() === method
     )
     if (!httpRequest) return
@@ -125,31 +117,27 @@ export default class HttpServer {
   _pushRequest(
     path: string,
     method: HttpMethods,
-    handler: ServerRequestHandler,
-    queryKey: string | undefined
+    handler: ServerRequestHandler
   ) {
-    const httpRequestObj = { path, method, handler, queryKey }
+    const [endpoint, queryKey] = deconstructPath(path)
+    const httpRequestObj = { endpoint, method, handler, queryKey }
     this.httpRequests.push(httpRequestObj)
   }
 
   get(path: string, handler: ServerRequestHandler) {
-    const [pathName, queryKey] = deconstructPath(path)
-    this._pushRequest(pathName, 'GET', handler, queryKey)
+    this._pushRequest(path, 'GET', handler)
   }
 
   post(path: string, handler: ServerRequestHandler) {
-    const [pathName, queryKey] = deconstructPath(path)
-    this._pushRequest(pathName, 'POST', handler, queryKey)
+    this._pushRequest(path, 'POST', handler)
   }
 
   delete(path: string, handler: ServerRequestHandler) {
-    const [pathName, queryKey] = deconstructPath(path)
-    this._pushRequest(pathName, 'DELETE', handler, queryKey)
+    this._pushRequest(path, 'DELETE', handler)
   }
 
   put(path: string, handler: ServerRequestHandler) {
-    const [pathName, queryKey] = deconstructPath(path)
-    this._pushRequest(pathName, 'PUT', handler, queryKey)
+    this._pushRequest(path, 'PUT', handler)
   }
 
   listen() {
@@ -157,61 +145,5 @@ export default class HttpServer {
     this._server.listen(this._port, this._host, () => {
       console.log(`Server is listening on ${this._host}:${this._port}`)
     })
-  }
-}
-
-const deconstructUrl = (url: string): [string, string | undefined] => {
-  let pathName: string
-  let queryVal: string | undefined = undefined
-  if (!url.endsWith('/')) {
-    const arr = url.split('/')
-    queryVal = arr.pop()
-    pathName = arr.join('/') + '/'
-  } else {
-    pathName = url
-  }
-  return [pathName.toLowerCase(), queryVal]
-}
-
-const deconstructPath = (path: string): [string, string | undefined] => {
-  let pathName: string
-  let queryParam: string | undefined = undefined
-  if (path.includes(':')) {
-    ;[pathName, queryParam] = path.split(':')
-  } else {
-    pathName = path
-  }
-  return [pathName.toLowerCase(), queryParam]
-}
-
-type ServerRequestHandler = (req: RequestHandler, res: ResponseHandler) => void
-
-class RequestHandler {
-  private _req: IncomingMessage
-  readonly payload?: any
-  readonly params?: Param | undefined
-
-  constructor(_req: IncomingMessage, params: Param | undefined, payload?: any) {
-    this._req = _req
-    this.payload = payload
-    this.params = params
-  }
-}
-
-class ResponseHandler {
-  private _res: ServerResponse
-
-  constructor(_res: ServerResponse) {
-    this._res = _res
-  }
-
-  status(statusCode: number) {
-    this._res.statusCode === statusCode
-    return this
-  }
-
-  send(body: string) {
-    this._res.end(body)
-    return this
   }
 }
