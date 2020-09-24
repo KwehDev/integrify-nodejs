@@ -16,12 +16,12 @@ server.get('/', (req, res) => {
   res.status(200).send('Home page')
 })
 
-server.post('/api/posts', (req, res) => {
+server.post('/api/posts/', (req, res) => {
   const post = req.payload
   if (post) {
     const postObj: Post = Object.assign({}, post, {
       // Should be random in future. MongoDB does it automatically for each entry.
-      postId: '' + mockPostDB.length + 1,
+      postId: (mockPostDB.length + 1).toString(),
     })
 
     if (isPost(postObj)) {
@@ -35,21 +35,32 @@ server.post('/api/posts', (req, res) => {
 })
 
 server.delete('/api/posts/:postId', (req, res) => {
-  //   const postId = req.params?.get('postId')
-  //   if (postId) {
-  //     const indexOfItem = mockPostDB.findIndex((item) => item.postId === postId)
-  //     if (indexOfItem) {
-  //       mockPostDB.splice(indexOfItem, 1)
-  //       return res.status(200).send('Item deleted')
-  //     }
-  //   }
-  //   return res.status(404).send('Resource not found')
-  // })
+  const postId = req.params?.postId
+  if (postId) {
+    const indexOfItem = mockPostDB.findIndex((item) => item.postId === postId)
+    if (indexOfItem !== -1) {
+      mockPostDB.splice(indexOfItem, 1)
+      return res.status(200).send('Item deleted')
+    }
+  }
+  return res.status(404).send('Resource not found')
 })
-// server.put('/api/posts/:postId', (req, res) => {
-//   const postId = req.params.postId
-//   res.status(200).send(`Updated ${postId}`)
-// })
+
+server.put('/api/posts/:postId', (req, res) => {
+  console.log(mockPostDB)
+  const postId = req.params?.postId
+  const updatedPost: Partial<Post> = req.payload
+  if (postId) {
+    let item = mockPostDB.find((item) => item.postId === postId)
+    if (item) {
+      item = Object.assign(item, {
+        ...updatedPost,
+      })
+      res.status(200).send(`Updated ${postId}`)
+    }
+  }
+  return res.status(404).send('Resource not found')
+})
 
 server.listen()
 

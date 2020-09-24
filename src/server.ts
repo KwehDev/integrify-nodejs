@@ -1,11 +1,16 @@
 import { createServer, IncomingMessage, Server, ServerResponse } from 'http'
 import url from 'url'
-type HttpMethods = 'GET' | 'POST' | 'DELETE'
+type HttpMethods = 'GET' | 'POST' | 'DELETE' | 'PUT'
 
 type HttpRequest = {
-  pathname: string
+  path: string
   handler: ServerRequestHandler
   method: HttpMethods
+  queryKey?: string | undefined
+}
+
+type Param = {
+  [key: string]: string
 }
 
 export default class HttpServer {
@@ -23,7 +28,8 @@ export default class HttpServer {
   _handlePostRequest(
     httpRequest: HttpRequest,
     req: IncomingMessage,
-    res: ServerResponse
+    res: ServerResponse,
+    params: Param | undefined
   ) {
     const data: Buffer[] = []
     return req
@@ -34,7 +40,7 @@ export default class HttpServer {
         try {
           const payload: any = JSON.parse(data.toString())
           return httpRequest?.handler(
-            new RequestHandler(req, payload),
+            new RequestHandler(req, params, payload),
             new ResponseHandler(res)
           )
         } catch (e) {
@@ -47,56 +53,103 @@ export default class HttpServer {
   _handleDeleteRequest(
     httpRequest: HttpRequest,
     req: IncomingMessage,
-    res: ServerResponse
+    res: ServerResponse,
+    params: Param | undefined
   ) {
     return httpRequest.handler(
-      new RequestHandler(req),
+      new RequestHandler(req, params),
       new ResponseHandler(res)
     )
   }
 
+  _handlePutRequest(
+    httpRequest: HttpRequest,
+    req: IncomingMessage,
+    res: ServerResponse,
+    params: Param | undefined
+  ) {
+    const data: Buffer[] = []
+    return req
+      .on('data', (chunk) => {
+        data.push(chunk)
+      })
+      .on('end', () => {
+        try {
+          const payload: any = JSON.parse(data.toString())
+          return httpRequest?.handler(
+            new RequestHandler(req, params, payload),
+            new ResponseHandler(res)
+          )
+        } catch (e) {
+          res.statusCode = 400
+          res.end('Error: Bad Request')
+        }
+      })
+  }
+
   _requestListener(req: IncomingMessage, res: ServerResponse) {
-    const path = req.url?.toLowerCase()
+    const [pathName, queryVal] = deconstructUrl(req.url!)
     const method = req.method!.toLowerCase()
     const httpRequest = this.httpRequests.find(
       (req) =>
-        req.pathname.toLowerCase() === path &&
+        req.path.toLowerCase() === pathName &&
         req.method.toLowerCase() === method
     )
     if (!httpRequest) return
 
+    const params: Param | undefined =
+      httpRequest.queryKey && queryVal
+        ? Object.assign(
+            {},
+            {
+              [httpRequest.queryKey]: queryVal,
+            }
+          )
+        : undefined
+
     switch (method.toLowerCase()) {
       case 'get':
         return httpRequest?.handler(
-          new RequestHandler(req),
+          new RequestHandler(req, params),
           new ResponseHandler(res)
         )
       case 'post':
-        return this._handlePostRequest(httpRequest, req, res)
+        return this._handlePostRequest(httpRequest, req, res, params)
       case 'delete':
-        return this._handleDeleteRequest(httpRequest, req, res)
+        return this._handleDeleteRequest(httpRequest, req, res, params)
+      case 'put':
+        return this._handlePutRequest(httpRequest, req, res, params)
     }
   }
 
   _pushRequest(
-    pathname: string,
+    path: string,
     method: HttpMethods,
-    handler: ServerRequestHandler
+    handler: ServerRequestHandler,
+    queryKey: string | undefined
   ) {
-    const httpRequestObj = { pathname, method, handler }
+    const httpRequestObj = { path, method, handler, queryKey }
     this.httpRequests.push(httpRequestObj)
   }
 
-  get(pathname: string, handler: ServerRequestHandler) {
-    this._pushRequest(pathname, 'GET', handler)
+  get(path: string, handler: ServerRequestHandler) {
+    const [pathName, queryKey] = deconstructPath(path)
+    this._pushRequest(pathName, 'GET', handler, queryKey)
   }
 
-  post(pathname: string, handler: ServerRequestHandler) {
-    this._pushRequest(pathname, 'POST', handler)
+  post(path: string, handler: ServerRequestHandler) {
+    const [pathName, queryKey] = deconstructPath(path)
+    this._pushRequest(pathName, 'POST', handler, queryKey)
   }
 
-  delete(pathname: string, handler: ServerRequestHandler) {
-    this._pushRequest(pathname, 'DELETE', handler)
+  delete(path: string, handler: ServerRequestHandler) {
+    const [pathName, queryKey] = deconstructPath(path)
+    this._pushRequest(pathName, 'DELETE', handler, queryKey)
+  }
+
+  put(path: string, handler: ServerRequestHandler) {
+    const [pathName, queryKey] = deconstructPath(path)
+    this._pushRequest(pathName, 'PUT', handler, queryKey)
   }
 
   listen() {
@@ -107,15 +160,41 @@ export default class HttpServer {
   }
 }
 
+const deconstructUrl = (url: string): [string, string | undefined] => {
+  let pathName: string
+  let queryVal: string | undefined = undefined
+  if (!url.endsWith('/')) {
+    const arr = url.split('/')
+    queryVal = arr.pop()
+    pathName = arr.join('/') + '/'
+  } else {
+    pathName = url
+  }
+  return [pathName.toLowerCase(), queryVal]
+}
+
+const deconstructPath = (path: string): [string, string | undefined] => {
+  let pathName: string
+  let queryParam: string | undefined = undefined
+  if (path.includes(':')) {
+    ;[pathName, queryParam] = path.split(':')
+  } else {
+    pathName = path
+  }
+  return [pathName.toLowerCase(), queryParam]
+}
+
 type ServerRequestHandler = (req: RequestHandler, res: ResponseHandler) => void
 
 class RequestHandler {
   private _req: IncomingMessage
   readonly payload?: any
+  readonly params?: Param | undefined
 
-  constructor(_req: IncomingMessage, payload?: any) {
+  constructor(_req: IncomingMessage, params: Param | undefined, payload?: any) {
     this._req = _req
     this.payload = payload
+    this.params = params
   }
 }
 
