@@ -10,7 +10,9 @@ type Post = {
 
 const server = new HttpServer(3000)
 
-const mockPostDB: Post[] = []
+const mockPostDB: Post[] = [
+  { postId: '1', title: 'Hello', author: 'Kdev', text: 'Lorem Ipsum' },
+]
 
 server.get('/', (req, res) => {
   res.status(200).send('Home page')

@@ -10,7 +10,7 @@
     "build": "tsc"
   },
   "devDependencies": {
-    "@types/node": "^13.13.21",
+    "@types/node": "^14.11.2",
     "@types/path-to-regexp": "^1.7.0",
     "babel-preset-env": "^1.7.0",
     "babel-register": "^6.26.0",
